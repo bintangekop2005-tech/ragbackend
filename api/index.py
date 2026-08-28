@@ -135,6 +135,7 @@ def generate_node(state: GraphState) -> GraphState:
             "needed greetings which means the question like hello, i wanna know about your experience, project, skill etc. or what you do for living?"
             "Again, please read and devine the question first"
             f"Historycontext:\n{state.get('history', '')}\n\n"
+            "This is the history context, used if the question needs to be regarded to the history. IF NOT, dont use it "
             f"Context:\n{state.get('context', '')}\n\n"
             f"Question: {state['question']}\n"
             "Answer:"
