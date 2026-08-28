@@ -1,0 +1,6 @@
+fastapi
+pydantic
+google-generativeai
+pinecone
+uvicorn[standard]
+langgraph
