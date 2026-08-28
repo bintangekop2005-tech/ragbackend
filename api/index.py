@@ -53,6 +53,11 @@ def get_model():
         _gemini_model = genai.GenerativeModel(CHAT_MODEL)
     return _gemini_model
 
+_chat_history = []
+def get_history():
+    global _chat_history
+    return _chat_history
+
 
 # =========================================================
 # LANGGRAPH: state + node + graph
@@ -129,6 +134,7 @@ def generate_node(state: GraphState) -> GraphState:
             "if the question have a context like skill, experience, contact, project, etc. you can answer it by context"
             "needed greetings which means the question like hello, i wanna know about your experience, project, skill etc. or what you do for living?"
             "Again, please read and devine the question first"
+            f"Historycontext:\n{state.get('history', '')}\n\n"
             f"Context:\n{state.get('context', '')}\n\n"
             f"Question: {state['question']}\n"
             "Answer:"
@@ -139,6 +145,23 @@ def generate_node(state: GraphState) -> GraphState:
         state["error"] = f"[Gemini Generation] {e}"
     return state
 
+def history_node(state: GraphState) -> GraphState:
+    if state.get("error"):
+        return state
+    try:
+        hist = get_history()
+        hist.append(f"User: {state['question']}")
+        hist.append(f"Bintang: {state.get('answer', '')}")
+        
+        # Batasi histori percakapan (misalnya 10 percakapan terakhir = 20 baris)
+        if len(hist) > 20:
+            hist[:] = hist[-20:]
+            
+        state["history"] = "\n".join(hist)
+    except Exception as e:
+        state["error"] = f"[History] {e}"
+    return state
+
 
 def build_graph():
     workflow = StateGraph(GraphState)
@@ -146,11 +169,13 @@ def build_graph():
     workflow.add_node("embed", embed_node)
     workflow.add_node("retrieve", retrieve_node)
     workflow.add_node("generate", generate_node)
+    workflow.add_node("history", history_node)
 
     workflow.set_entry_point("embed")
     workflow.add_edge("embed", "retrieve")
     workflow.add_edge("retrieve", "generate")
-    workflow.add_edge("generate", END)
+    workflow.add_edge("generate", "history")
+    workflow.add_edge("history", END)
 
     return workflow.compile()
 
@@ -185,7 +210,8 @@ def chat_bot(req: ChatRequest):
         except Exception as e:
             return {"error": f"[Gemini Init] {e}"}
 
-        initial_state: GraphState = {"question": req.question}
+        history_str = "\n".join(get_history())
+        initial_state: GraphState = {"question": req.question, "history": history_str}
         final_state = rag_graph.invoke(initial_state)
 
         if final_state.get("error"):
