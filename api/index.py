@@ -135,7 +135,6 @@ def generate_node(state: GraphState) -> GraphState:
             "needed greetings which means the question like hello, i wanna know about your experience, project, skill etc. or what you do for living?"
             "Again, please read and devine the question first"
             f"Historycontext:\n{state.get('history', '')}\n\n"
-            "This is the history context, used if the question needs to be regarded to the history. IF NOT, dont use it "
             f"Context:\n{state.get('context', '')}\n\n"
             f"Question: {state['question']}\n"
             "Answer:"
@@ -170,13 +169,11 @@ def build_graph():
     workflow.add_node("embed", embed_node)
     workflow.add_node("retrieve", retrieve_node)
     workflow.add_node("generate", generate_node)
-    workflow.add_node("history", history_node)
 
     workflow.set_entry_point("embed")
     workflow.add_edge("embed", "retrieve")
     workflow.add_edge("retrieve", "generate")
-    workflow.add_edge("generate", "history")
-    workflow.add_edge("history", END)
+    workflow.add_edge("generate", END)
 
     return workflow.compile()
 
@@ -210,15 +207,23 @@ def chat_bot(req: ChatRequest):
             get_model()
         except Exception as e:
             return {"error": f"[Gemini Init] {e}"}
-
-        history_str = "\n".join(get_history())
+        history_list = get_history()
+        history_str = "\n".join(history_list)
         initial_state: GraphState = {"question": req.question, "history": history_str}
         final_state = rag_graph.invoke(initial_state)
 
         if final_state.get("error"):
             return {"error": final_state["error"]}
+        
+        answer = final_state.get("answer", "")
+        
+        history_list.append(f"User: {req.question}")
+        history_list.append(f"Bintang: {answer}")
 
-        return {"response": final_state.get("answer", "")}
+        if len(history_list) > 20:
+            _chat_history[:] = history_list[-20:]
+
+        return {"response": answer}
 
     except Exception as e:
         return {"error": str(e)}
