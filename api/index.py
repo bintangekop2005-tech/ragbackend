@@ -19,17 +19,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Konfigurasi ---
 INDEX_NAME = "selfai1"
 NAMESPACE = "__default__"
-EMBED_MODEL = "models/gemini-embedding-001"  # dimensi 3072
+EMBED_MODEL = "models/gemini-embedding-001"  # dimension 3072
 CHAT_MODEL = "gemini-3.5-flash-lite"
 
-# --- Lazy init: client dibuat saat pertama kali digunakan ---
 _pinecone_index = None
 _gemini_model = None
 _embed_configured = False
-
 
 def get_index():
     global _pinecone_index
@@ -38,13 +35,11 @@ def get_index():
         _pinecone_index = pc.Index(INDEX_NAME)
     return _pinecone_index
 
-
 def _ensure_genai():
     global _embed_configured
     if not _embed_configured:
         genai.configure(api_key=os.environ["GEMINI_API_KEY"])
         _embed_configured = True
-
 
 def get_model():
     global _gemini_model
@@ -53,11 +48,6 @@ def get_model():
         _gemini_model = genai.GenerativeModel(CHAT_MODEL)
     return _gemini_model
 
-
-# =========================================================
-# LANGGRAPH: state + node + graph
-# =========================================================
-
 class GraphState(TypedDict, total=False):
     question: str
     history: List[Dict[str, str]]
@@ -65,7 +55,6 @@ class GraphState(TypedDict, total=False):
     context: str
     answer: str
     error: Optional[str]
-
 
 def embed_node(state: GraphState) -> GraphState:
     """Node 1: ubah pertanyaan user menjadi vector pakai Gemini Embedding."""
@@ -82,7 +71,6 @@ def embed_node(state: GraphState) -> GraphState:
     except Exception as e:
         state["error"] = f"[Gemini Embedding] {e}"
     return state
-
 
 def retrieve_node(state: GraphState) -> GraphState:
     """Node 2: query Pinecone pakai vector hasil embed."""
@@ -105,7 +93,6 @@ def retrieve_node(state: GraphState) -> GraphState:
     except Exception as e:
         state["error"] = f"[Pinecone] {e}"
     return state
-
 
 def generate_node(state: GraphState) -> GraphState:
     """Node 3: generate jawaban pakai Gemini, dengan rules persis seperti versi lama."""
@@ -145,7 +132,6 @@ def generate_node(state: GraphState) -> GraphState:
         state["error"] = f"[Gemini Generation] {e}"
     return state
 
-
 def build_graph():
     workflow = StateGraph(GraphState)
 
@@ -160,14 +146,7 @@ def build_graph():
 
     return workflow.compile()
 
-
-# Graph dibangun sekali saat module di-load (di-reuse antar-request)
 rag_graph = build_graph()
-
-
-# =========================================================
-# FASTAPI ROUTES
-# =========================================================
 
 class ChatMessage(BaseModel):
     role: str
@@ -179,13 +158,11 @@ class ChatRequest(BaseModel):
 
 @app.get("/")
 def home():
-    return {"status": "API Chatbot Portofolio Aktif! (LangGraph)"}
-
+    return {"status": "API Chatbot Active! (LangGraph)"}
 
 @app.post("/api/chat")
 def chat_bot(req: ChatRequest):
     try:
-        # Cek awal seperti versi lama: pastikan client bisa di-init
         try:
             get_index()
         except Exception as e:
